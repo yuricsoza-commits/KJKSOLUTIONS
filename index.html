@@ -1,1294 +1,1247 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Cultivo Automatizado</title>
-    <script src="https://cdn.jsdelivr.net/npm/mqtt@5.0.0/dist/mqtt.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #f5f5f5; color: #333; }
-        
-        header { background: white; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-        h1 { font-family: 'Poppins', sans-serif; font-size: 24px; color: #2d5016; }
-        
-        .status { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: #e8f5e9; border-radius: 20px; }
-        .status-dot { width: 10px; height: 10px; background: #f44336; border-radius: 50%; }
-        .status-dot.online { background: #4caf50; }
-        
-        .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
-        
-        .mqtt-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .mqtt-section h2 { color: #2d5016; margin-bottom: 15px; font-size: 16px; }
-        
-        .mqtt-form { display: grid; grid-template-columns: 1fr 1fr 1fr 100px 100px; gap: 10px; align-items: flex-end; }
-        .form-group { display: flex; flex-direction: column; }
-        .form-group label { font-size: 12px; font-weight: 600; color: #666; margin-bottom: 5px; }
-        .form-group input, .form-group select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
-        
-        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px; }
-        .btn-primary { background: #2d5016; color: white; }
-        .btn-primary:hover { background: #1e3610; }
-        .btn-danger { background: #f44336; color: white; }
-        .btn-danger:hover { background: #d32f2f; }
-        
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e0e0e0; }
-        .tab { padding: 10px 20px; background: none; border: none; cursor: pointer; font-weight: 600; color: #999; border-bottom: 2px solid transparent; }
-        .tab.active { color: #2d5016; border-bottom-color: #2d5016; }
-        
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        
-        .section-title { font-family: 'Poppins', sans-serif; font-size: 18px; color: #2d5016; margin: 20px 0 15px 0; }
-        
-        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        
-        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .card-label { font-size: 11px; color: #999; text-transform: uppercase; margin-bottom: 8px; }
-        .card-value { font-size: 24px; font-weight: 700; color: #2d5016; }
-        .card-unit { font-size: 12px; color: #999; }
-        
-        .btn-group { display: flex; gap: 8px; margin-top: 12px; }
-        .btn-small { flex: 1; padding: 8px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 12px; }
-        .btn-small.on { background: #4caf50; color: white; border-color: #4caf50; }
-        .btn-small.off { background: #f44336; color: white; border-color: #f44336; }
-        
-        .plant-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .plant-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .plant-name { font-family: 'Poppins', sans-serif; font-size: 16px; font-weight: 700; color: #2d5016; }
-        .config-icon { background: none; border: none; font-size: 18px; cursor: pointer; }
-        
-        .plant-sensors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-        .sensor-box { background: #f8f9fa; padding: 10px; border-radius: 4px; text-align: center; }
-        .sensor-box-label { font-size: 10px; color: #999; margin-bottom: 4px; }
-        .sensor-box-value { font-size: 18px; font-weight: 700; color: #2d5016; }
-        
-        .config-section { background: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 12px; border-left: 3px solid #2d5016; display: none; }
-        .config-section.show { display: block; }
-        .config-section h4 { color: #2d5016; margin-top: 10px; margin-bottom: 8px; font-size: 13px; }
-        
-        .config-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-        .config-form .form-group { margin-bottom: 10px; }
-        .config-form input, .config-form select { width: 100%; }
-        
-        .btn-save { width: 100%; margin-top: 10px; }
-        
-        .message { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 4px; display: none; z-index: 1000; }
-        .message.show { display: block; animation: slideIn 0.3s ease; }
-        .message.success { background: #4caf50; color: white; }
-        .message.error { background: #f44336; color: white; }
-        @keyframes slideIn { from { transform: translateX(400px); } to { transform: translateX(0); } }
-        
-        .chart-container { background: white; padding: 15px; border-radius: 8px; position: relative; height: 250px; }
-        
-        .health-bar { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; margin: 8px 0; overflow: hidden; }
-        .health-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
-        .health-bar-fill.excellent { background: #4caf50; width: 100%; }
-        .health-bar-fill.good { background: #8bc34a; width: 75%; }
-        .health-bar-fill.warning { background: #ff9800; width: 50%; }
-        .health-bar-fill.critical { background: #f44336; width: 25%; }
-        
-        .alerts-section { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; border-radius: 4px; margin: 10px 0; display: none; }
-        .alerts-section.show { display: block; }
-        .alerts-section.critical { background: #f8d7da; border-left-color: #f44336; }
-        .alert-item { font-size: 12px; color: #333; margin: 4px 0; }
-        .alert-item.warning { color: #ff9800; font-weight: 600; }
-        .alert-item.critical { color: #f44336; font-weight: 600; }
-        
-        /* Estilos para visualização do tanque */
-        .tank-container { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-        .tank-visual { width: 80px; height: 120px; border: 3px solid #2d5016; border-radius: 8px; position: relative; background: white; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .tank-fill { position: absolute; bottom: 0; width: 100%; background: linear-gradient(to top, #4caf50, #81c784); transition: height 0.5s ease; display: flex; align-items: center; justify-content: center; }
-        .tank-fill-percent { color: white; font-weight: 700; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-        .tank-label { font-size: 12px; color: #999; text-transform: uppercase; font-weight: 600; }
-        .tank-percentage { font-size: 20px; font-weight: 700; color: #2d5016; }
-        
-        .ph-ec-input { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
-        .ph-ec-field { display: flex; flex-direction: column; }
-        .ph-ec-field label { font-size: 11px; color: #666; margin-bottom: 3px; font-weight: 600; }
-        .ph-ec-field input { padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
-        .ph-ec-field .update-date { font-size: 10px; color: #999; margin-top: 2px; }
-        .ph-ec-field .update-date.old { color: #f44336; font-weight: 600; }
-        
-        .btn-update-phec { width: 100%; padding: 6px; background: #2d5016; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; margin-top: 8px; }
-        .btn-update-phec:hover { background: #1e3610; }
-        
-        @media (max-width: 1024px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } .mqtt-form { grid-template-columns: 1fr; } }
-        @media (max-width: 768px) { .grid-2, .grid-4 { grid-template-columns: 1fr; } }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1B4332" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Yuri | Saúde & Nutrição</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --bg:        #F4F9F4;
+      --bg2:       #EAF4EA;
+      --card:      #FFFFFF;
+      --card2:     #F0FAF0;
+
+      --green-d:   #1B4332;
+      --green-m:   #2D6A4F;
+      --green-l:   #52B788;
+      --green-xl:  #95D5B2;
+      --green-xxl: #D8F3DC;
+
+      --orange:    #F4845F;
+      --orange-l:  #FDDCCA;
+
+      --yellow:    #F9C74F;
+      --yellow-l:  #FEF3C7;
+
+      --blue:      #4A90D9;
+      --blue-l:    #DBEAFE;
+
+      --text:      #1A2E1A;
+      --text2:     #3A5A3A;
+      --muted:     #6B8F6B;
+      --border:    #C8E6C9;
+      --border-l:  #E8F5E9;
+
+      --radius:    18px;
+      --radius-sm: 12px;
+      --shadow:    0 2px 12px rgba(27,67,50,0.08);
+      --shadow-l:  0 4px 20px rgba(27,67,50,0.12);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: linear-gradient(160deg, var(--green-d) 0%, var(--green-m) 60%, var(--green-l) 100%);
+      padding: 48px 18px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 16px rgba(27,67,50,0.25);
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+    .greeting-small { font-size: 12px; color: var(--green-xl); font-weight: 500; }
+    .greeting-name  { font-size: 22px; font-weight: 800; color: #fff; line-height: 1.1; }
+    .greeting-sub   { font-size: 12px; color: var(--green-xl); margin-top: 2px; }
+    .date-pill {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 11px;
+      color: #fff;
+      font-weight: 600;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .date-pill span { display: block; font-size: 9px; color: var(--green-xl); font-weight: 400; }
+
+    /* ── NAV ── */
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+    }
+    .nav-tabs::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px;
+      color: rgba(255,255,255,0.7);
+      padding: 7px 15px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.22s;
+      white-space: nowrap;
+    }
+    .tab-btn.active {
+      background: #fff;
+      border-color: #fff;
+      color: var(--green-d);
+    }
+
+    /* ── MAIN ── */
+    main { padding: 16px; padding-bottom: 110px; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border-l);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 14px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-title .ct-icon {
+      width: 26px; height: 26px;
+      border-radius: 8px;
+      background: var(--green-xxl);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+
+    /* ── SECTION HEADER ── */
+    .sec-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .sec-title { font-size: 20px; font-weight: 800; color: var(--green-d); }
+
+    /* ── MACROS GRID ── */
+    .macros-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .macro-item {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 12px;
+      text-align: center;
+    }
+    .macro-value { font-size: 24px; font-weight: 800; line-height: 1; }
+    .macro-label { font-size: 11px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+    .macro-sub   { font-size: 10px; color: var(--muted); margin-top: 2px; opacity: 0.8; }
+    .prog-bar {
+      background: var(--border);
+      border-radius: 99px;
+      height: 5px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .prog-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+    .c-cal  { color: var(--yellow); }
+    .c-prot { color: var(--orange); }
+    .c-carb { color: var(--blue); }
+    .c-fat  { color: var(--green-l); }
+
+    /* ── SCHEDULE ── */
+    .sched-list { display: flex; flex-direction: column; gap: 0; }
+    .schedule-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-l);
+    }
+    .schedule-item:last-child { border-bottom: none; }
+    .sched-time {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green-m);
+      min-width: 40px;
+    }
+    .sched-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .sched-info { flex: 1; }
+    .sched-text { font-size: 13px; font-weight: 600; color: var(--text); }
+    .sched-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    /* ── DAILY CHECKLIST ── */
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-l);
+      transition: opacity 0.2s;
+    }
+    .check-row:last-child { border-bottom: none; }
+    .check-box {
+      width: 24px; height: 24px;
+      border-radius: 7px;
+      border: 2px solid var(--border);
+      background: var(--bg2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .check-box.on {
+      background: var(--green-l);
+      border-color: var(--green-l);
+      color: #fff;
+    }
+    .check-label { font-size: 13px; color: var(--text2); }
+    .check-label.done-label { text-decoration: line-through; color: var(--muted); }
+
+    /* ── DAY SELECTOR ── */
+    .day-selector {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      margin-bottom: 16px;
+    }
+    .day-selector::-webkit-scrollbar { display: none; }
+    .day-btn {
+      flex-shrink: 0;
+      width: 52px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 4px;
+      gap: 3px;
+      transition: all 0.2s;
+      box-shadow: var(--shadow);
+    }
+    .day-btn .day-name { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .day-btn .day-abbr { font-size: 16px; font-weight: 800; }
+    .day-btn.today-marker:not(.active) {
+      border-color: var(--green-l);
+      color: var(--green-m);
+    }
+    .day-btn.today-marker:not(.active) .day-name,
+    .day-btn.today-marker:not(.active) .day-abbr { color: var(--green-m); }
+    .day-btn.active {
+      background: var(--green-m);
+      border-color: var(--green-m);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(45,106,79,0.35);
+    }
+    .day-btn.active .day-name,
+    .day-btn.active .day-abbr { color: #fff; }
+
+    /* ── MEAL LIST ── */
+    .meal-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--border-l);
+    }
+    .meal-item:last-child { border-bottom: none; }
+    .meal-time {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green-m);
+      min-width: 38px;
+      padding-top: 2px;
+    }
+    .meal-icon { font-size: 22px; min-width: 26px; }
+    .meal-info { flex: 1; }
+    .meal-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .meal-desc { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+    .meal-check {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--bg2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      transition: all 0.2s;
+      color: transparent;
+    }
+    .meal-check.done {
+      background: var(--green-l);
+      border-color: var(--green-l);
+      color: #fff;
+    }
+
+    /* ── TAGS / BADGES ── */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 20px;
+      padding: 4px 11px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tag-green  { background: var(--green-xxl); color: var(--green-d); }
+    .tag-orange { background: var(--orange-l);  color: #c0440a; }
+    .tag-yellow { background: var(--yellow-l);  color: #92650a; }
+    .tag-blue   { background: var(--blue-l);    color: #1a4f8a; }
+    .tag-today  { background: var(--green-m);   color: #fff; font-size: 10px; padding: 3px 10px; }
+
+    /* ── TASKS ── */
+    .cat-selector {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .cat-sel-btn {
+      flex: 1;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      padding: 8px 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 700;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    .cat-sel-btn[data-cat="pessoal"].sel   { background: var(--green-xxl); border-color: var(--green-l); color: var(--green-d); }
+    .cat-sel-btn[data-cat="trabalho"].sel  { background: var(--blue-l);    border-color: var(--blue);    color: #1a4f8a; }
+    .cat-sel-btn[data-cat="treino"].sel    { background: var(--orange-l);  border-color: var(--orange);  color: #c0440a; }
+    .cat-sel-btn[data-cat="nutricao"].sel  { background: var(--yellow-l);  border-color: var(--yellow);  color: #92650a; }
+
+    .task-input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .task-input {
+      flex: 1;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 11px 14px;
+      font-size: 13px;
+      outline: none;
+      box-shadow: var(--shadow);
+    }
+    .task-input:focus { border-color: var(--green-l); }
+    .task-input::placeholder { color: var(--muted); }
+    .add-btn {
+      background: var(--green-m);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      padding: 11px 18px;
+      font-size: 20px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(45,106,79,0.3);
+    }
+    .task-filters {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .filter-btn {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      color: var(--muted);
+      padding: 5px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn.active {
+      background: var(--green-xxl);
+      border-color: var(--green-l);
+      color: var(--green-d);
+    }
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px;
+      background: var(--card);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      border: 1.5px solid var(--border-l);
+      box-shadow: var(--shadow);
+      transition: opacity 0.2s;
+    }
+    .task-item.done-task { opacity: 0.5; }
+    .task-cb {
+      width: 22px; height: 22px;
+      border-radius: 7px;
+      border: 2px solid var(--border);
+      background: var(--bg2);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .task-cb.checked { background: var(--green-l); border-color: var(--green-l); color: #fff; }
+    .task-text { flex: 1; font-size: 13px; color: var(--text2); }
+    .task-text.done-text { text-decoration: line-through; color: var(--muted); }
+    .task-date { font-size: 10px; color: var(--muted); display: block; margin-top: 2px; }
+    .task-del {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 15px;
+      padding: 2px 4px;
+      transition: color 0.2s;
+    }
+    .task-del:hover { color: var(--orange); }
+
+    .cat-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── WEIGHT ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .sum-item {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 8px;
+      text-align: center;
+    }
+    .sum-val   { font-size: 18px; font-weight: 800; }
+    .sum-label { font-size: 10px; color: var(--muted); margin-top: 3px; font-weight: 600; }
+
+    .weight-log-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .weight-input {
+      flex: 1;
+      background: var(--card2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 12px 14px;
+      font-size: 18px;
+      font-weight: 800;
+      outline: none;
+      text-align: center;
+    }
+    .weight-input:focus { border-color: var(--green-l); }
+    .log-btn {
+      background: var(--green-m);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      padding: 12px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(45,106,79,0.3);
+    }
+    .weight-entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border-l);
+    }
+    .weight-entry:last-child { border-bottom: none; }
+    .weight-val  { font-size: 17px; font-weight: 800; color: var(--green-m); }
+    .weight-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .weight-diff { font-size: 12px; font-weight: 700; }
+    .diff-down { color: var(--green-l); }
+    .diff-up   { color: var(--orange); }
+
+    /* ── GUIDE ── */
+    .tip-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border-l);
+    }
+    .tip-item:last-child { border-bottom: none; }
+    .tip-icon {
+      width: 32px; height: 32px;
+      border-radius: 9px;
+      background: var(--green-xxl);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .tip-text { font-size: 13px; line-height: 1.5; color: var(--text2); padding-top: 6px; }
+    .tip-text strong { color: var(--green-d); }
+
+    /* ── DIVIDER ── */
+    .divider { height: 1px; background: var(--border-l); margin: 12px 0; }
+
+    /* ── EMPTY ── */
+    .empty-state {
+      text-align: center;
+      padding: 32px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .empty-state .ei { font-size: 38px; margin-bottom: 8px; display: block; }
+
+    /* ── TAGS ROW ── */
+    .tags-row { display: flex; gap: 7px; flex-wrap: wrap; padding-top: 4px; }
+
+    /* ── PROGRESS DOTS ── */
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
+
+    /* scrollbar hide */
+    ::-webkit-scrollbar { width: 0; height: 0; }
+  </style>
 </head>
 <body>
-    <header>
-        <div class="header-content">
-            <h1>🌱 Cultivo Automatizado</h1>
-            <div class="status">
-                <div class="status-dot" id="statusDot"></div>
-                <span id="statusText">Desconectado</span>
-            </div>
-        </div>
-    </header>
 
-    <div class="container">
-        <div id="message" class="message"></div>
-
-        <div class="tabs">
-            <button class="tab active" onclick="abrirAba(event, 'dashboard')">Dashboard</button>
-            <button class="tab" onclick="abrirAba(event, 'config')">Configuração</button>
-        </div>
-
-        <!-- ABA DASHBOARD -->
-        <div id="dashboard" class="tab-content active">
-            <div class="mqtt-section">
-                <h2>⚙️ Conexão MQTT</h2>
-                <div class="mqtt-form">
-                    <div class="form-group">
-                        <label>Broker</label>
-                        <input type="text" id="broker" placeholder="seu_endpoint.emqx.cloud" value="">
-                    </div>
-                    <div class="form-group">
-                        <label>Usuário</label>
-                        <input type="text" id="usuario" placeholder="seu_usuario" value="">
-                    </div>
-                    <div class="form-group">
-                        <label>Senha</label>
-                        <input type="password" id="senha" placeholder="sua_senha" value="">
-                    </div>
-                    <button class="btn btn-primary" onclick="conectarMQTT()">Conectar</button>
-                    <button class="btn btn-danger" onclick="desconectarMQTT()">Desconectar</button>
-                </div>
-            </div>
-
-            <h3 class="section-title">🌍 Ambiente</h3>
-            <div class="grid-4">
-                <div class="card">
-                    <div class="card-label">Temperatura</div>
-                    <div class="card-value"><span id="temp">--</span><span class="card-unit">°C</span></div>
-                </div>
-                <div class="card">
-                    <div class="card-label">Umidade</div>
-                    <div class="card-value"><span id="humidity">--</span><span class="card-unit">%</span></div>
-                </div>
-                <div class="card">
-                    <div class="card-label">VPD</div>
-                    <div class="card-value"><span id="vpd">--</span><span class="card-unit">kPa</span></div>
-                </div>
-                <div class="card">
-                    <div class="tank-container">
-                        <div class="tank-label">Reservatório</div>
-                        <div class="tank-visual">
-                            <div class="tank-fill" id="tank-fill" style="height: 0%">
-                                <div class="tank-fill-percent" id="tank-fill-percent"></div>
-                            </div>
-                        </div>
-                        <div class="tank-percentage"><span id="reservoir">--</span>%</div>
-                    </div>
-                </div>
-            </div>
-
-            <h3 class="section-title">💡 Ciclo de Luz</h3>
-            <div class="mqtt-section">
-                <div class="mqtt-form" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
-                    <div class="form-group">
-                        <label>Fase</label>
-                        <select id="fase" onchange="atualizarFase()">
-                            <option value="vegetativa">Vegetativa (18/6)</option>
-                            <option value="floracao">Floração (12/12)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Início da Luz</label>
-                        <input type="time" id="horarioLuz" value="06:00">
-                    </div>
-                    <div class="form-group">
-                        <label>Duração (horas)</label>
-                        <input type="number" id="duracaoLuz" value="18" min="1" max="24">
-                    </div>
-                    <button class="btn btn-primary" onclick="salvarCicloLuz()" style="align-self: flex-end;">Salvar</button>
-                </div>
-                <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                    <strong>Resumo:</strong> Luz ligará às <span id="resumoHorario">06:00</span> por <span id="resumoDuracao">18</span> horas
-                </p>
-            </div>
-
-            <h3 class="section-title">🎛️ Controles</h3>
-            <div class="grid-2">
-                <div class="card">
-                    <div class="card-label">💡 Iluminação</div>
-                    <div class="btn-group">
-                        <button class="btn-small on" id="light-btn" onclick="enviarComando('grow/light/toggle', 'ON')">Ligar</button>
-                        <button class="btn-small off" id="light-off" onclick="enviarComando('grow/light/toggle', 'OFF')">Desligar</button>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 11px; color: #999;" id="light-status">Status: Desconhecido</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">🌬️ Ventilador</div>
-                    <div class="btn-group">
-                        <button class="btn-small on" id="fan-btn" onclick="enviarComando('grow/exhaust/toggle', 'ON')">Ligar</button>
-                        <button class="btn-small off" id="fan-off" onclick="enviarComando('grow/exhaust/toggle', 'OFF')">Desligar</button>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 11px; color: #999;" id="fan-status">Status: Desconhecido</div>
-                </div>
-            </div>
-
-            <h3 class="section-title">📊 Histórico</h3>
-            <div class="grid-2">
-                <div class="chart-container">
-                    <canvas id="tempChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <canvas id="humidityChart"></canvas>
-                </div>
-            </div>
-
-            <h3 class="section-title">🌱 Plantas</h3>
-            <div class="grid-4">
-                <div class="plant-card">
-                    <div class="plant-header">
-                        <div class="plant-name" id="nome1">Planta 1</div>
-                        <button class="config-icon" onclick="toggleConfig(1)">⚙️</button>
-                    </div>
-                    
-                    <div style="font-size: 11px; color: #666; margin-bottom: 8px;">Saúde: <span id="p1health">--</span>%</div>
-                    <div class="health-bar">
-                        <div class="health-bar-fill" id="p1health-bar"></div>
-                    </div>
-                    
-                    <div class="plant-sensors">
-                        <div class="sensor-box">
-                            <div class="sensor-box-label">Umidade Solo</div>
-                            <div class="sensor-box-value"><span id="p1moisture">--</span><span class="card-unit">%</span></div>
-                        </div>
-                        <div class="sensor-box">
-                            <div class="sensor-box-label">Última Rega</div>
-                            <div class="sensor-box-value"><span id="p1watering" style="font-size: 14px;">--</span></div>
-                        </div>
-                    </div>
-                    
-                    <div class="ph-ec-input">
-                        <div class="ph-ec-field">
-                            <label>pH (Medido)</label>
-                            <input type="number" id="p1ph-input" step="0.1" min="4" max="8" placeholder="--">
-                            <div class="update-date" id="p1ph-date">Nunca atualizado</div>
-                        </div>
-                        <div class="ph-ec-field">
-                            <label>EC (Medido)</label>
-                            <input type="number" id="p1ec-input" step="0.1" min="0" max="3" placeholder="--">
-                            <div class="update-date" id="p1ec-date">Nunca atualizado</div>
-                        </div>
-                    </div>
-                    <button class="btn-update-phec" onclick="atualizarPHEC(1)">Atualizar pH/EC</button>
-                    
-                    <div class="alerts-section" id="p1alerts"></div>
-                    <div class="btn-group">
-                        <button class="btn-small on" id="pump1-btn" onclick="enviarComando('grow/plant1/pump/toggle', 'ON')">Bomba ON</button>
-                        <button class="btn-small off" id="pump1-off" onclick="enviarComando('grow/plant1/pump/toggle', 'OFF')">Bomba OFF</button>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 11px; color: #999;" id="pump1-status">Status: Desconhecido</div>
-                    <div class="config-section" id="config1">
-                        <h4>Configuração</h4>
-                        <div class="config-form">
-                            <div class="form-group">
-                                <label>Nome</label>
-                                <input type="text" value="Planta 1" onchange="salvarPlanta(1, 'nome', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Variedade</label>
-                                <input type="text" value="Sativa" onchange="salvarPlanta(1, 'variedade', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Intervalo Rega (min)</label>
-                                <input type="number" value="240" onchange="salvarPlanta(1, 'intervalo', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Duração Rega (seg)</label>
-                                <input type="number" value="15" onchange="salvarPlanta(1, 'duracao', this.value)">
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label>Horário de Rega</label>
-                                <select id="p1-rega-tipo" onchange="salvarPlanta(1, 'regaTipo', this.value)">
-                                    <option value="luz">Ao ligar a luz</option>
-                                    <option value="horario">A partir de horário específico</option>
-                                </select>
-                            </div>
-                            <div class="form-group" id="p1-rega-horario" style="display: none;">
-                                <label>Horário de Rega</label>
-                                <input type="time" id="p1-rega-time" value="06:00" onchange="salvarPlanta(1, 'regaHorario', this.value)">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="plant-card">
-                    <div class="plant-header">
-                        <div class="plant-name" id="nome2">Planta 2</div>
-                        <button class="config-icon" onclick="toggleConfig(2)">⚙️</button>
-                    </div>
-                    
-                    <div style="font-size: 11px; color: #666; margin-bottom: 8px;">Saúde: <span id="p2health">--</span>%</div>
-                    <div class="health-bar">
-                        <div class="health-bar-fill" id="p2health-bar"></div>
-                    </div>
-                    
-                    <div class="plant-sensors">
-                        <div class="sensor-box">
-                            <div class="sensor-box-label">Umidade Solo</div>
-                            <div class="sensor-box-value"><span id="p2moisture">--</span><span class="card-unit">%</span></div>
-                        </div>
-                        <div class="sensor-box">
-                            <div class="sensor-box-label">Última Rega</div>
-                            <div class="sensor-box-value"><span id="p2watering" style="font-size: 14px;">--</span></div>
-                        </div>
-                    </div>
-                    
-                    <div class="ph-ec-input">
-                        <div class="ph-ec-field">
-                            <label>pH (Medido)</label>
-                            <input type="number" id="p2ph-input" step="0.1" min="4" max="8" placeholder="--">
-                            <div class="update-date" id="p2ph-date">Nunca atualizado</div>
-                        </div>
-                        <div class="ph-ec-field">
-                            <label>EC (Medido)</label>
-                            <input type="number" id="p2ec-input" step="0.1" min="0" max="3" placeholder="--">
-                            <div class="update-date" id="p2ec-date">Nunca atualizado</div>
-                        </div>
-                    </div>
-                    <button class="btn-update-phec" onclick="atualizarPHEC(2)">Atualizar pH/EC</button>
-                    
-                    <div class="alerts-section" id="p2alerts"></div>
-                    <div class="btn-group">
-                        <button class="btn-small on" id="pump2-btn" onclick="enviarComando('grow/plant2/pump/toggle', 'ON')">Bomba ON</button>
-                        <button class="btn-small off" id="pump2-off" onclick="enviarComando('grow/plant2/pump/toggle', 'OFF')">Bomba OFF</button>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 11px; color: #999;" id="pump2-status">Status: Desconhecido</div>
-                    <div class="config-section" id="config2">
-                        <h4>Configuração</h4>
-                        <div class="config-form">
-                            <div class="form-group">
-                                <label>Nome</label>
-                                <input type="text" value="Planta 2" onchange="salvarPlanta(2, 'nome', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Variedade</label>
-                                <input type="text" value="Indica" onchange="salvarPlanta(2, 'variedade', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Intervalo Rega (min)</label>
-                                <input type="number" value="240" onchange="salvarPlanta(2, 'intervalo', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Duração Rega (seg)</label>
-                                <input type="number" value="15" onchange="salvarPlanta(2, 'duracao', this.value)">
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label>Horário de Rega</label>
-                                <select id="p2-rega-tipo" onchange="salvarPlanta(2, 'regaTipo', this.value)">
-                                    <option value="luz">Ao ligar a luz</option>
-                                    <option value="horario">A partir de horário específico</option>
-                                </select>
-                            </div>
-                            <div class="form-group" id="p2-rega-horario" style="display: none;">
-                                <label>Horário de Rega</label>
-                                <input type="time" id="p2-rega-time" value="06:00" onchange="salvarPlanta(2, 'regaHorario', this.value)">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="plant-card">
-                    <div class="plant-header">
-                        <div class="plant-name" id="nome3">Planta 3</div>
-                        <button class="config-icon" onclick="toggleConfig(3)">⚙️</button>
-                    </div>
-                    
-                    <div style="font-size: 11px; color: #666; margin-bottom: 8px;">Saúde: <span id="p3health">--</span>%</div>
-                    <div class="health-bar">
-                        <div class="health-bar-fill" id="p3health-bar"></div>
-                    </div>
-                    
-                    <div class="plant-sensors">
-                        <div class="sensor-box">
-                            <div class="sensor-box-label">Umidade Solo</div>
-                            <div class="sensor-box-value"><span id="p3moisture">--</span><span class="card-unit">%</span></div>
-                        </div>
-                        <div class="sensor-box">
-                            <div class="sensor-box-label">Última Rega</div>
-                            <div class="sensor-box-value"><span id="p3watering" style="font-size: 14px;">--</span></div>
-                        </div>
-                    </div>
-                    
-                    <div class="ph-ec-input">
-                        <div class="ph-ec-field">
-                            <label>pH (Medido)</label>
-                            <input type="number" id="p3ph-input" step="0.1" min="4" max="8" placeholder="--">
-                            <div class="update-date" id="p3ph-date">Nunca atualizado</div>
-                        </div>
-                        <div class="ph-ec-field">
-                            <label>EC (Medido)</label>
-                            <input type="number" id="p3ec-input" step="0.1" min="0" max="3" placeholder="--">
-                            <div class="update-date" id="p3ec-date">Nunca atualizado</div>
-                        </div>
-                    </div>
-                    <button class="btn-update-phec" onclick="atualizarPHEC(3)">Atualizar pH/EC</button>
-                    
-                    <div class="alerts-section" id="p3alerts"></div>
-                    <div class="btn-group">
-                        <button class="btn-small on" id="pump3-btn" onclick="enviarComando('grow/plant3/pump/toggle', 'ON')">Bomba ON</button>
-                        <button class="btn-small off" id="pump3-off" onclick="enviarComando('grow/plant3/pump/toggle', 'OFF')">Bomba OFF</button>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 11px; color: #999;" id="pump3-status">Status: Desconhecido</div>
-                    <div class="config-section" id="config3">
-                        <h4>Configuração</h4>
-                        <div class="config-form">
-                            <div class="form-group">
-                                <label>Nome</label>
-                                <input type="text" value="Planta 3" onchange="salvarPlanta(3, 'nome', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Variedade</label>
-                                <input type="text" value="Híbrida" onchange="salvarPlanta(3, 'variedade', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Intervalo Rega (min)</label>
-                                <input type="number" value="240" onchange="salvarPlanta(3, 'intervalo', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Duração Rega (seg)</label>
-                                <input type="number" value="15" onchange="salvarPlanta(3, 'duracao', this.value)">
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label>Horário de Rega</label>
-                                <select id="p3-rega-tipo" onchange="salvarPlanta(3, 'regaTipo', this.value)">
-                                    <option value="luz">Ao ligar a luz</option>
-                                    <option value="horario">A partir de horário específico</option>
-                                </select>
-                            </div>
-                            <div class="form-group" id="p3-rega-horario" style="display: none;">
-                                <label>Horário de Rega</label>
-                                <input type="time" id="p3-rega-time" value="06:00" onchange="salvarPlanta(3, 'regaHorario', this.value)">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="plant-card">
-                    <div class="plant-header">
-                        <div class="plant-name" id="nome4">Planta 4</div>
-                        <button class="config-icon" onclick="toggleConfig(4)">⚙️</button>
-                    </div>
-                    
-                    <div style="font-size: 11px; color: #666; margin-bottom: 8px;">Saúde: <span id="p4health">--</span>%</div>
-                    <div class="health-bar">
-                        <div class="health-bar-fill" id="p4health-bar"></div>
-                    </div>
-                    
-                    <div class="plant-sensors">
-                        <div class="sensor-box">
-                            <div class="sensor-box-label">Umidade Solo</div>
-                            <div class="sensor-box-value"><span id="p4moisture">--</span><span class="card-unit">%</span></div>
-                        </div>
-                        <div class="sensor-box">
-                            <div class="sensor-box-label">Última Rega</div>
-                            <div class="sensor-box-value"><span id="p4watering" style="font-size: 14px;">--</span></div>
-                        </div>
-                    </div>
-                    
-                    <div class="ph-ec-input">
-                        <div class="ph-ec-field">
-                            <label>pH (Medido)</label>
-                            <input type="number" id="p4ph-input" step="0.1" min="4" max="8" placeholder="--">
-                            <div class="update-date" id="p4ph-date">Nunca atualizado</div>
-                        </div>
-                        <div class="ph-ec-field">
-                            <label>EC (Medido)</label>
-                            <input type="number" id="p4ec-input" step="0.1" min="0" max="3" placeholder="--">
-                            <div class="update-date" id="p4ec-date">Nunca atualizado</div>
-                        </div>
-                    </div>
-                    <button class="btn-update-phec" onclick="atualizarPHEC(4)">Atualizar pH/EC</button>
-                    
-                    <div class="alerts-section" id="p4alerts"></div>
-                    <div class="btn-group">
-                        <button class="btn-small on" id="pump4-btn" onclick="enviarComando('grow/plant4/pump/toggle', 'ON')">Bomba ON</button>
-                        <button class="btn-small off" id="pump4-off" onclick="enviarComando('grow/plant4/pump/toggle', 'OFF')">Bomba OFF</button>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 11px; color: #999;" id="pump4-status">Status: Desconhecido</div>
-                    <div class="config-section" id="config4">
-                        <h4>Configuração</h4>
-                        <div class="config-form">
-                            <div class="form-group">
-                                <label>Nome</label>
-                                <input type="text" value="Planta 4" onchange="salvarPlanta(4, 'nome', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Variedade</label>
-                                <input type="text" value="Sativa" onchange="salvarPlanta(4, 'variedade', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Intervalo Rega (min)</label>
-                                <input type="number" value="240" onchange="salvarPlanta(4, 'intervalo', this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Duração Rega (seg)</label>
-                                <input type="number" value="15" onchange="salvarPlanta(4, 'duracao', this.value)">
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label>Horário de Rega</label>
-                                <select id="p4-rega-tipo" onchange="salvarPlanta(4, 'regaTipo', this.value)">
-                                    <option value="luz">Ao ligar a luz</option>
-                                    <option value="horario">A partir de horário específico</option>
-                                </select>
-                            </div>
-                            <div class="form-group" id="p4-rega-horario" style="display: none;">
-                                <label>Horário de Rega</label>
-                                <input type="time" id="p4-rega-time" value="06:00" onchange="salvarPlanta(4, 'regaHorario', this.value)">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ABA CONFIGURAÇÃO -->
-        <div id="config" class="tab-content">
-            <div class="mqtt-section">
-                <h2>📋 Configurações Gerais</h2>
-                <p style="color: #666; font-size: 13px; margin-top: 10px;">
-                    Clique no ícone ⚙️ em cada planta no Dashboard para editar suas configurações individuais.
-                </p>
-            </div>
-        </div>
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="greeting-small" id="greetingSmall">Bom dia,</div>
+      <div class="greeting-name">Yuri 💪</div>
+      <div class="greeting-sub" id="greetingSub">Vamos manter o foco hoje!</div>
     </div>
+    <div class="date-pill" id="datePill">
+      <span id="datePillSub">Hoje</span>
+      <span id="datePillMain">–</span>
+    </div>
+  </div>
+  <nav class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('hoje',this)">🏠 Hoje</button>
+    <button class="tab-btn" onclick="switchTab('cardapio',this)">🥗 Cardápio</button>
+    <button class="tab-btn" onclick="switchTab('tarefas',this)">✅ Tarefas</button>
+    <button class="tab-btn" onclick="switchTab('peso',this)">⚖️ Peso</button>
+    <button class="tab-btn" onclick="switchTab('guia',this)">📋 Guia</button>
+  </nav>
+</div>
 
-    <script>
-        let client = null;
-        let tempChart, humidityChart;
-        const historico = { temp: [], humidity: [] };
-        
-        const plantasData = {
-            1: { ph: null, ec: null, phDate: null, ecDate: null, moisture: 0, lastWatering: 0, lastWateringTime: null },
-            2: { ph: null, ec: null, phDate: null, ecDate: null, moisture: 0, lastWatering: 0, lastWateringTime: null },
-            3: { ph: null, ec: null, phDate: null, ecDate: null, moisture: 0, lastWatering: 0, lastWateringTime: null },
-            4: { ph: null, ec: null, phDate: null, ecDate: null, moisture: 0, lastWatering: 0, lastWateringTime: null }
-        };
-        
-        let ambienteData = { temp: 0, humidity: 0, vpd: 0 };
-        let ultimaAtualizacaoSaude = { 1: 0, 2: 0, 3: 0, 4: 0 };
-        const INTERVALO_ATUALIZACAO_SAUDE = 3 * 60 * 60 * 1000; // 3 horas em ms
-        let intervaloAtualizacaoRega = null; // Para atualizar display de rega a cada segundo
+<main>
 
-        // Função para formatar tempo decorrido
-        function formatarTempoDecorrido(segundos) {
-            const minutos = Math.floor(segundos / 60);
-            const horas = Math.floor(minutos / 60);
-            const dias = Math.floor(horas / 24);
-            
-            if (segundos === 0) {
-                return 'agora';
-            } else if (dias > 0) {
-                return dias + 'd ' + (horas % 24) + 'h';
-            } else if (horas > 0) {
-                return horas + 'h ' + (minutos % 60) + 'm';
-            } else if (minutos > 0) {
-                return minutos + 'm';
-            } else {
-                return segundos + 's';
-            }
-        }
-        
-        // Função para formatar data e hora
-        function formatarDataHora(date) {
-            const dia = String(date.getDate()).padStart(2, '0');
-            const mes = String(date.getMonth() + 1).padStart(2, '0');
-            const hora = String(date.getHours()).padStart(2, '0');
-            const minuto = String(date.getMinutes()).padStart(2, '0');
-            return `${dia}/${mes} ${hora}:${minuto}`;
-        }
-        
-        // Função para atualizar display de última rega
-        function atualizarDisplayRega(plantNum) {
-            const data = plantasData[plantNum];
-            if (!data.lastWateringTime) return;
-            
-            const dataFormatada = formatarDataHora(new Date(data.lastWateringTime));
-            document.getElementById(`p${plantNum}watering`).textContent = dataFormatada;
-        }
+<!-- ══════════════════════════════════
+     TAB: HOJE
+══════════════════════════════════ -->
+<div class="section active" id="sec-hoje">
 
-        function abrirAba(e, abaId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-            document.getElementById(abaId).classList.add('active');
-            e.target.classList.add('active');
-        }
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">🎯</div> Metas Diárias</div>
+    <div class="macros-grid">
+      <div class="macro-item">
+        <div class="macro-value c-cal">2.000</div>
+        <div class="macro-label">Calorias</div>
+        <div class="macro-sub">1.900–2.100 kcal</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:70%;background:var(--yellow)"></div></div>
+      </div>
+      <div class="macro-item">
+        <div class="macro-value c-prot">180g</div>
+        <div class="macro-label">Proteína</div>
+        <div class="macro-sub">170–190g / dia</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:60%;background:var(--orange)"></div></div>
+      </div>
+      <div class="macro-item">
+        <div class="macro-value c-carb">190g</div>
+        <div class="macro-label">Carboidratos</div>
+        <div class="macro-sub">160–220g / dia</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:55%;background:var(--blue)"></div></div>
+      </div>
+      <div class="macro-item">
+        <div class="macro-value c-fat">60g</div>
+        <div class="macro-label">Gorduras</div>
+        <div class="macro-sub">50–70g / dia</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:65%;background:var(--green-l)"></div></div>
+      </div>
+    </div>
+  </div>
 
-        function toggleConfig(num) {
-            const config = document.getElementById(`config${num}`);
-            config.classList.toggle('show');
-        }
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">🕐</div> Rotina do Dia</div>
+    <div class="sched-list">
+      <div class="schedule-item">
+        <div class="sched-time">05:20</div>
+        <div class="sched-dot" style="background:var(--yellow)"></div>
+        <div class="sched-info"><div class="sched-text">☀️ Acordar</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">05:30</div>
+        <div class="sched-dot" style="background:var(--green-l)"></div>
+        <div class="sched-info"><div class="sched-text">🍌 Pré-treino</div><div class="sched-sub">Banana + café preto</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">06:00</div>
+        <div class="sched-dot" style="background:var(--orange)"></div>
+        <div class="sched-info"><div class="sched-text">💪 Treino</div><div class="sched-sub">até 07:00</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">07:15</div>
+        <div class="sched-dot" style="background:var(--green-l)"></div>
+        <div class="sched-info"><div class="sched-text">🍳 Pós-treino / Café</div><div class="sched-sub">4 ovos + carboidrato + fruta</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">08:00</div>
+        <div class="sched-dot" style="background:var(--blue)"></div>
+        <div class="sched-info"><div class="sched-text">💼 Trabalho</div><div class="sched-sub">até 17:00</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">10:00</div>
+        <div class="sched-dot" style="background:var(--green-l)"></div>
+        <div class="sched-info"><div class="sched-text">🥛 Lanche da Manhã</div><div class="sched-sub">Iogurte + fruta</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">12:30</div>
+        <div class="sched-dot" style="background:var(--green-l)"></div>
+        <div class="sched-info"><div class="sched-text">🍱 Almoço</div><div class="sched-sub">Proteína + arroz + legumes</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">15:30</div>
+        <div class="sched-dot" style="background:var(--green-l)"></div>
+        <div class="sched-info"><div class="sched-text">🥪 Lanche da Tarde</div><div class="sched-sub">Fruta + proteína leve</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">18:30</div>
+        <div class="sched-dot" style="background:var(--orange)"></div>
+        <div class="sched-info"><div class="sched-text">🚶 Cardio Leve</div><div class="sched-sub">20–35 min caminhada / bike</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">20:00</div>
+        <div class="sched-dot" style="background:var(--green-l)"></div>
+        <div class="sched-info"><div class="sched-text">🍽️ Jantar</div><div class="sched-sub">Proteína + arroz + salada</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">22:30</div>
+        <div class="sched-dot" style="background:var(--muted)"></div>
+        <div class="sched-info"><div class="sched-text">🥛 Ceia (opcional)</div><div class="sched-sub">Iogurte ou 2 ovos</div></div>
+      </div>
+      <div class="schedule-item">
+        <div class="sched-time">23:00</div>
+        <div class="sched-dot" style="background:var(--green-d)"></div>
+        <div class="sched-info"><div class="sched-text">😴 Dormir</div></div>
+      </div>
+    </div>
+  </div>
 
-        function salvarPlanta(num, campo, valor) {
-            const dados = JSON.parse(localStorage.getItem(`planta${num}`) || '{}');
-            dados[campo] = valor;
-            localStorage.setItem(`planta${num}`, JSON.stringify(dados));
-            
-            if (campo === 'nome') {
-                document.getElementById(`nome${num}`).textContent = valor;
-            }
-            
-            if (campo === 'regaTipo') {
-                const horariosEl = document.getElementById(`p${num}-rega-horario`);
-                if (valor === 'horario') {
-                    horariosEl.style.display = 'flex';
-                } else {
-                    horariosEl.style.display = 'none';
-                }
-            }
-            
-            mostrarMensagem(`✓ Planta ${num} atualizada!`, 'success');
-        }
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">✅</div> Checklist do Dia</div>
+    <div id="dailyChecks"></div>
+  </div>
 
-        function atualizarFase() {
-            const fase = document.getElementById('fase').value;
-            const duracao = document.getElementById('duracaoLuz');
-            duracao.value = fase === 'vegetativa' ? 18 : 12;
-            atualizarResumo();
-        }
+</div>
 
-        function atualizarResumo() {
-            const horario = document.getElementById('horarioLuz').value;
-            const duracao = document.getElementById('duracaoLuz').value;
-            document.getElementById('resumoHorario').textContent = horario;
-            document.getElementById('resumoDuracao').textContent = duracao;
-        }
+<!-- ══════════════════════════════════
+     TAB: CARDÁPIO
+══════════════════════════════════ -->
+<div class="section" id="sec-cardapio">
+  <div class="day-selector" id="daySelector"></div>
+  <div id="mealCard"></div>
+</div>
 
-        function salvarCicloLuz() {
-            const ciclo = {
-                fase: document.getElementById('fase').value,
-                horario: document.getElementById('horarioLuz').value,
-                duracao: document.getElementById('duracaoLuz').value
-            };
-            localStorage.setItem('cicloLuz', JSON.stringify(ciclo));
-            
-            if (client && client.connected) {
-                client.publish('grow/light/schedule', JSON.stringify(ciclo), { qos: 1 });
-            }
-            
-            mostrarMensagem('✓ Ciclo de luz salvo!', 'success');
-        }
+<!-- ══════════════════════════════════
+     TAB: TAREFAS
+══════════════════════════════════ -->
+<div class="section" id="sec-tarefas">
+  <div class="sec-header">
+    <div class="sec-title">Minhas Tarefas</div>
+    <div class="tag tag-green" id="taskCounter">0 pendentes</div>
+  </div>
 
-        function conectarMQTT() {
-            const broker = document.getElementById('broker').value;
-            const usuario = document.getElementById('usuario').value;
-            const senha = document.getElementById('senha').value;
+  <div class="cat-selector">
+    <button class="cat-sel-btn sel" data-cat="pessoal"  onclick="selectCat(this)">👤<br>Pessoal</button>
+    <button class="cat-sel-btn"     data-cat="trabalho" onclick="selectCat(this)">💼<br>Trabalho</button>
+    <button class="cat-sel-btn"     data-cat="treino"   onclick="selectCat(this)">💪<br>Treino</button>
+    <button class="cat-sel-btn"     data-cat="nutricao" onclick="selectCat(this)">🥗<br>Nutrição</button>
+  </div>
 
-            if (!broker || !usuario || !senha) {
-                mostrarMensagem('Preencha todos os campos!', 'error');
-                console.error('Campos vazios');
-                return;
-            }
+  <div class="task-input-row">
+    <input class="task-input" id="taskInput" placeholder="Adicionar nova tarefa..." />
+    <button class="add-btn" onclick="addTask()">＋</button>
+  </div>
 
-            let url = broker.trim();
-            
-            if (url.startsWith('wss://')) {
-                url = url.substring(6);
-            }
-            
-            if (url.endsWith('/mqtt')) {
-                url = url.substring(0, url.length - 5);
-            }
-            
-            if (url.endsWith(':8084')) {
-                url = url.substring(0, url.length - 5);
-            }
-            
-            url = `wss://${url}:8084/mqtt`;
-            
-            console.log('=== MQTT DEBUG ===');
-            console.log('URL Final:', url);
-            console.log('Usuario:', usuario);
-            console.log('Broker Original:', broker);
+  <div class="task-filters">
+    <button class="filter-btn active" onclick="filterTasks('todas',this)">Todas</button>
+    <button class="filter-btn" onclick="filterTasks('pendente',this)">Pendentes</button>
+    <button class="filter-btn" onclick="filterTasks('done',this)">Concluídas</button>
+  </div>
 
-            try {
-                client = mqtt.connect(url, {
-                    username: usuario,
-                    password: senha,
-                    clientId: 'Dashboard_' + Math.random().toString(36).substr(2, 9),
-                    reconnectPeriod: 5000,
-                    connectTimeout: 10000,
-                    clean: true,
-                    protocolVersion: 4
-                });
-                console.log('Cliente MQTT criado');
+  <div id="taskList"></div>
+</div>
 
-                client.on('connect', () => {
-                    mostrarMensagem('✓ Conectado ao MQTT!', 'success');
-                    atualizarStatus(true);
-                    
-                    client.subscribe('grow/sensor/temp');
-                    client.subscribe('grow/sensor/humidity');
-                    client.subscribe('grow/sensor/vpd');
-                    client.subscribe('grow/reservoir/level');
-                    
-                    for (let i = 1; i <= 4; i++) {
-                        client.subscribe('grow/plant' + i + '/sensor/ph');
-                        client.subscribe('grow/plant' + i + '/sensor/ec');
-                        client.subscribe('grow/plant' + i + '/sensor/moisture');
-                        client.subscribe('grow/plant' + i + '/last_watering');
-                    }
-                    
-                    client.subscribe('grow/light/status');
-                    client.subscribe('grow/exhaust/status');
-                    client.subscribe('grow/pump1/status');
-                    client.subscribe('grow/pump2/status');
-                    client.subscribe('grow/pump3/status');
-                    client.subscribe('grow/pump4/status');
-                });
+<!-- ══════════════════════════════════
+     TAB: PESO
+══════════════════════════════════ -->
+<div class="section" id="sec-peso">
 
-                client.on('message', (topic, message) => {
-                    const msgStr = message.toString();
-                    const valor = parseFloat(msgStr);
-                    
-                    if (topic === 'grow/sensor/temp') {
-                        document.getElementById('temp').textContent = valor.toFixed(1);
-                    } else if (topic === 'grow/sensor/humidity') {
-                        document.getElementById('humidity').textContent = valor.toFixed(0);
-                    } else if (topic === 'grow/sensor/vpd') {
-                        document.getElementById('vpd').textContent = valor.toFixed(2);
-                    } else if (topic === 'grow/reservoir/level') {
-                        const percentual = Math.min(100, Math.max(0, valor.toFixed(0)));
-                        document.getElementById('reservoir').textContent = percentual;
-                        atualizarVisualizacaoTanque(percentual);
-                    }
-                    
-                    for (let i = 1; i <= 4; i++) {
-                        if (topic === 'grow/plant' + i + '/sensor/moisture') {
-                            plantasData[i].moisture = valor;
-                            document.getElementById('p' + i + 'moisture').textContent = valor.toFixed(0);
-                            atualizarSaudePlantaImediato(i);
-                        } else if (topic === 'grow/plant' + i + '/last_watering') {
-                            plantasData[i].lastWatering = parseInt(msgStr);
-                            // Registrar timestamp da rega (agora)
-                            plantasData[i].lastWateringTime = new Date().toISOString();
-                            atualizarDisplayRega(i);
-                            atualizarSaudePlantaImediato(i);
-                        }
-                    }
-                    
-                    if (topic === 'grow/sensor/temp') {
-                        ambienteData.temp = valor;
-                        for (let i = 1; i <= 4; i++) atualizarSaudePlantaImediato(i);
-                    } else if (topic === 'grow/sensor/humidity') {
-                        ambienteData.humidity = valor;
-                        for (let i = 1; i <= 4; i++) atualizarSaudePlantaImediato(i);
-                    }
-                });
+  <div class="sec-header">
+    <div class="sec-title">Acompanhamento</div>
+    <div class="tag tag-yellow">Meta: −0,5 kg/sem</div>
+  </div>
 
-                client.on('error', (err) => {
-                    console.error('MQTT Error:', err);
-                    console.error('Erro completo:', JSON.stringify(err));
-                    mostrarMensagem('✗ Erro: ' + err.message, 'error');
-                    atualizarStatus(false);
-                });
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">📊</div> Resumo Geral</div>
+    <div class="summary-grid">
+      <div class="sum-item">
+        <div class="sum-val" id="startWeight" style="color:var(--blue)">–</div>
+        <div class="sum-label">Peso inicial</div>
+      </div>
+      <div class="sum-item">
+        <div class="sum-val" id="lastWeight" style="color:var(--yellow)">–</div>
+        <div class="sum-label">Último</div>
+      </div>
+      <div class="sum-item">
+        <div class="sum-val" id="totalLoss" style="color:var(--green-l)">–</div>
+        <div class="sum-label">Variação</div>
+      </div>
+    </div>
+  </div>
 
-                client.on('offline', () => {
-                    atualizarStatus(false);
-                });
-            } catch (e) {
-                mostrarMensagem('✗ Erro ao conectar: ' + e.message, 'error');
-            }
-        }
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">⚖️</div> Registrar Hoje</div>
+    <div class="weight-log-row">
+      <input class="weight-input" id="weightInput" type="number" step="0.1" placeholder="Ex: 82.5" />
+      <button class="log-btn" onclick="logWeight()">Salvar ✓</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+      <span>⏰</span> Pese ao acordar, em jejum, antes de comer ou beber
+    </div>
+  </div>
 
-        function desconectarMQTT() {
-            if (client) {
-                client.end();
-                atualizarStatus(false);
-                mostrarMensagem('Desconectado', 'success');
-            }
-        }
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">📈</div> Histórico</div>
+    <div id="weightHistory">
+      <div class="empty-state">
+        <span class="ei">⚖️</span>
+        Nenhum registro ainda.<br>Comece amanhã de manhã!
+      </div>
+    </div>
+  </div>
 
-        function enviarComando(topic, valor) {
-            if (!client || !client.connected) {
-                mostrarMensagem('✗ MQTT não conectado!', 'error');
-                return;
-            }
-            
-            // Validar horário de rega
-            if (topic.includes('pump') && valor === 'ON') {
-                const plantNum = topic.match(/plant(\d)/)[1];
-                const plantaConfig = JSON.parse(localStorage.getItem(`planta${plantNum}`) || '{}');
-                
-                // Verificar se luz está ligada
-                const lightStatus = document.getElementById('light-status').textContent;
-                if (lightStatus.includes('DESLIGADO')) {
-                    return; // Silenciosamente rejeita
-                }
-                
-                // Verificar horário se configurado
-                if (plantaConfig.regaTipo === 'horario' && plantaConfig.regaHorario) {
-                    const agora = new Date();
-                    const horaAtual = agora.getHours().toString().padStart(2, '0') + ':' + agora.getMinutes().toString().padStart(2, '0');
-                    
-                    if (horaAtual < plantaConfig.regaHorario) {
-                        mostrarMensagem(`⚠️ Rega ainda não permitida. Horário: ${plantaConfig.regaHorario}`, 'error');
-                        return;
-                    }
-                }
-            }
+</div>
 
-            client.publish(topic, valor, { qos: 1 });
-            atualizarStatusAtuador(topic, valor);
-            
-            // Atualizar saúde e horário quando bomba é ligada
-            if (topic.includes('pump') && valor === 'ON') {
-                const plantNum = topic.match(/plant(\d)/)[1];
-                
-                // Registrar timestamp da rega
-                const agora = new Date();
-                plantasData[plantNum].lastWateringTime = agora.toISOString();
-                plantasData[plantNum].lastWatering = 0; // Zerado = agora
-                
-                // Atualizar display
-                atualizarDisplayRega(plantNum);
-                
-                // Atualizar saúde
-                atualizarSaudePlantaImediato(plantNum);
-                
-                console.log(`[DEBUG] Última rega da Planta ${plantNum} registrada em ${agora.toLocaleString()}`);
-            }
-            
-            mostrarMensagem(`✓ ${valor === 'ON' ? 'Ligado' : 'Desligado'}`, 'success');
-        }
+<!-- ══════════════════════════════════
+     TAB: GUIA
+══════════════════════════════════ -->
+<div class="section" id="sec-guia">
 
-        function atualizarStatusAtuador(topic, valor) {
-            let id = '';
-            if (topic.includes('light')) id = 'light';
-            else if (topic.includes('exhaust')) id = 'fan';
-            else if (topic.includes('plant1')) id = 'pump1';
-            else if (topic.includes('plant2')) id = 'pump2';
-            else if (topic.includes('plant3')) id = 'pump3';
-            else if (topic.includes('plant4')) id = 'pump4';
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">📏</div> Quantidades por Refeição</div>
+    <div class="tip-item">
+      <div class="tip-icon">🌅</div>
+      <div class="tip-text"><strong>Pós-treino / Café da manhã</strong><br>4 ovos · 2 fatias pão integral OU 1 tapioca OU 40–60g aveia · 1 banana + 1 fruta extra</div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-icon">☀️</div>
+      <div class="tip-text"><strong>Almoço</strong><br>150–200g proteína · 100–150g arroz cozido · 1 concha feijão · legumes à vontade</div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-icon">🌙</div>
+      <div class="tip-text"><strong>Jantar</strong><br>150–200g proteína · 80–120g arroz cozido · legumes / salada em volume</div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-icon">🍎</div>
+      <div class="tip-text"><strong>Lanches</strong><br>Fruta · iogurte natural · ovos · pão c/ frango · queijo branco · aveia</div>
+    </div>
+  </div>
 
-            if (id) {
-                const statusEl = document.getElementById(`${id}-status`);
-                const btnOn = document.getElementById(`${id}-btn`);
-                const btnOff = document.getElementById(`${id}-off`);
-                
-                if (valor === 'ON') {
-                    statusEl.textContent = '✓ Status: LIGADO';
-                    statusEl.style.color = '#4caf50';
-                    statusEl.style.fontWeight = 'bold';
-                    btnOn.style.opacity = '1';
-                    btnOff.style.opacity = '0.5';
-                } else {
-                    statusEl.textContent = '✗ Status: DESLIGADO';
-                    statusEl.style.color = '#f44336';
-                    statusEl.style.fontWeight = 'bold';
-                    btnOn.style.opacity = '0.5';
-                    btnOff.style.opacity = '1';
-                }
-            }
-        }
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">💡</div> Regras do Plano</div>
+    <div class="tip-item"><div class="tip-icon">✅</div><div class="tip-text">Use <strong>arroz cozido</strong> como carboidrato base</div></div>
+    <div class="tip-item"><div class="tip-icon">✅</div><div class="tip-text">Proteína principal: <strong>frango ou carne moída magra</strong></div></div>
+    <div class="tip-item"><div class="tip-icon">✅</div><div class="tip-text">Prepare <strong>marmitas para 3–4 dias</strong> de uma vez</div></div>
+    <div class="tip-item"><div class="tip-icon">✅</div><div class="tip-text">Fome? Aumente <strong>legumes/salada primeiro</strong>, depois carboidrato</div></div>
+    <div class="tip-item"><div class="tip-icon">✅</div><div class="tip-text">Mantenha <strong>proteína alta</strong> para preservar massa magra</div></div>
+    <div class="tip-item"><div class="tip-icon">✅</div><div class="tip-text">Controle porções de arroz — <strong>não corte totalmente</strong></div></div>
+    <div class="tip-item"><div class="tip-icon">✅</div><div class="tip-text"><strong>Durma bem</strong> — afeta apetite e adesão ao plano diretamente</div></div>
+  </div>
 
-        function atualizarStatus(conectado) {
-            const dot = document.getElementById('statusDot');
-            const text = document.getElementById('statusText');
-            
-            if (conectado) {
-                dot.classList.add('online');
-                text.textContent = '✓ Conectado';
-            } else {
-                dot.classList.remove('online');
-                text.textContent = '✗ Desconectado';
-            }
-        }
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">🏃</div> Cardio Recomendado</div>
+    <div class="tip-item"><div class="tip-icon">📅</div><div class="tip-text"><strong>Frequência:</strong> 3–5x por semana</div></div>
+    <div class="tip-item"><div class="tip-icon">⏱️</div><div class="tip-text"><strong>Duração:</strong> 20–35 minutos por sessão</div></div>
+    <div class="tip-item"><div class="tip-icon">💓</div><div class="tip-text"><strong>Intensidade:</strong> Leve a moderada</div></div>
+    <div class="tip-item"><div class="tip-icon">🕐</div><div class="tip-text"><strong>Melhor horário:</strong> 17:30–19:00 ou dias sem musculação pesada</div></div>
+    <div class="divider"></div>
+    <div class="tags-row">
+      <span class="tag tag-green">🚶 Caminhada</span>
+      <span class="tag tag-blue">🚴 Bike</span>
+      <span class="tag tag-orange">🏃 Esteira inclinada</span>
+      <span class="tag tag-yellow">⚙️ Elíptico</span>
+    </div>
+  </div>
 
-        function mostrarMensagem(texto, tipo) {
-            const msg = document.getElementById('message');
-            msg.textContent = texto;
-            msg.className = `message show ${tipo}`;
-            setTimeout(() => msg.classList.remove('show'), 3000);
-        }
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">📉</div> Quando Ajustar</div>
+    <div class="tip-item"><div class="tip-icon">⬇️</div><div class="tip-text"><strong>Peso não cai:</strong> Reduza 100–150 kcal OU adicione 1 sessão de cardio leve</div></div>
+    <div class="tip-item"><div class="tip-icon">⬆️</div><div class="tip-text"><strong>Caindo rápido + queda de desempenho:</strong> Aumente 100–150 kcal</div></div>
+    <div class="tip-item"><div class="tip-icon">📊</div><div class="tip-text"><strong>Monitore:</strong> peso 3–5x/semana ao acordar · fome · desempenho · cintura</div></div>
+  </div>
 
-        function inicializarGraficos() {
-            const ctxTemp = document.getElementById('tempChart').getContext('2d');
-            tempChart = new Chart(ctxTemp, {
-                type: 'line',
-                data: {
-                    labels: Array.from({length: 24}, (_, i) => `${i}h`),
-                    datasets: [{
-                        label: 'Temperatura',
-                        data: Array(24).fill(null),
-                        borderColor: '#ff9800',
-                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+  <div class="card">
+    <div class="card-title"><div class="ct-icon">🥩</div> Proteínas (sem whey)</div>
+    <div class="tags-row">
+      <span class="tag tag-orange">🥚 Ovos</span>
+      <span class="tag tag-green">🍗 Frango</span>
+      <span class="tag tag-orange">🥩 Carne moída</span>
+      <span class="tag tag-blue">🥛 Iogurte</span>
+      <span class="tag tag-blue">🥛 Leite</span>
+      <span class="tag tag-yellow">🐟 Atum / Sardinha</span>
+    </div>
+  </div>
 
-            const ctxHum = document.getElementById('humidityChart').getContext('2d');
-            humidityChart = new Chart(ctxHum, {
-                type: 'line',
-                data: {
-                    labels: Array.from({length: 24}, (_, i) => `${i}h`),
-                    datasets: [{
-                        label: 'Umidade',
-                        data: Array(24).fill(null),
-                        borderColor: '#2196f3',
-                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
-        }
+</div>
+</main>
 
-        // Função para atualizar pH/EC manualmente
-        function atualizarPHEC(num) {
-            const phInput = document.getElementById(`p${num}ph-input`);
-            const ecInput = document.getElementById(`p${num}ec-input`);
-            
-            if (!phInput.value || !ecInput.value) {
-                mostrarMensagem('Preencha pH e EC!', 'error');
-                return;
-            }
-            
-            const agora = new Date();
-            plantasData[num].ph = parseFloat(phInput.value);
-            plantasData[num].ec = parseFloat(ecInput.value);
-            plantasData[num].phDate = agora;
-            plantasData[num].ecDate = agora;
-            
-            localStorage.setItem(`planta${num}Data`, JSON.stringify({
-                ph: plantasData[num].ph,
-                ec: plantasData[num].ec,
-                phDate: agora.toISOString(),
-                ecDate: agora.toISOString()
-            }));
-            
-            atualizarDatasPHEC(num);
-            atualizarSaudePlantaImediato(num);
-            mostrarMensagem(`✓ pH/EC da Planta ${num} atualizado!`, 'success');
-        }
-        
-        // Função para atualizar datas de pH/EC
-        function atualizarDatasPHEC(num) {
-            const data = plantasData[num];
-            const phDateEl = document.getElementById(`p${num}ph-date`);
-            const ecDateEl = document.getElementById(`p${num}ec-date`);
-            
-            if (data.phDate) {
-                const dias = Math.floor((Date.now() - new Date(data.phDate)) / (1000 * 60 * 60 * 24));
-                const texto = dias === 0 ? 'Hoje' : `${dias}d atrás`;
-                phDateEl.textContent = texto;
-                phDateEl.classList.toggle('old', dias > 7);
-            }
-            
-            if (data.ecDate) {
-                const dias = Math.floor((Date.now() - new Date(data.ecDate)) / (1000 * 60 * 60 * 24));
-                const texto = dias === 0 ? 'Hoje' : `${dias}d atrás`;
-                ecDateEl.textContent = texto;
-                ecDateEl.classList.toggle('old', dias > 7);
-            }
-        }
-        
-        // Função para atualizar saúde IMEDIATAMENTE
-        function atualizarSaudePlantaImediato(num) {
-            ultimaAtualizacaoSaude[num] = Date.now();
-            calcularSaudePlanta(num);
-            console.log(`[DEBUG] Saúde da Planta ${num} atualizada IMEDIATAMENTE`);
-        }
-        
-        // Função para atualizar saúde com controle de intervalo (3 horas)
-        function atualizarSaudePlanta(num) {
-            const agora = Date.now();
-            const tempoDecorrido = agora - ultimaAtualizacaoSaude[num];
-            
-            // Atualizar apenas se passou 3 horas ou se for primeira vez
-            if (tempoDecorrido >= INTERVALO_ATUALIZACAO_SAUDE || ultimaAtualizacaoSaude[num] === 0) {
-                atualizarSaudePlantaImediato(num);
-            }
-        }
-        
-        // Base de conhecimento sobre deficiências nutricionais
-        const nutrientDatabase = {
-            pH_issues: {
-                low: { range: '< 5.5', deficiencies: ['Mg', 'Ca', 'Mo'], cause: 'Bloqueio de nutrientes - pH muito ácido' },
-                high: { range: '> 6.5', deficiencies: ['Fe', 'Mn', 'Zn', 'P'], cause: 'Bloqueio de nutrientes - pH muito alcalino' }
-            },
-            EC_issues: {
-                low: { range: '< 0.8', deficiencies: ['N', 'P', 'K', 'todos'], cause: 'Concentração de nutrientes muito baixa' },
-                high: { range: '> 1.8', deficiencies: ['Ca', 'Mg'], cause: 'Queima nutricional - excesso de sais' }
-            }
-        };
-        
-        // Função para buscar deficiências baseado em pH
-        function buscarDeficienciasPorPH(phValue) {
-            const deficiencias = [];
-            if (phValue < 5.5) {
-                deficiencias.push('Magnésio (Mg)', 'Cálcio (Ca)', 'Molibdênio (Mo)');
-            } else if (phValue > 6.5) {
-                deficiencias.push('Ferro (Fe)', 'Manganês (Mn)', 'Zinco (Zn)', 'Fósforo (P)');
-            }
-            return deficiencias;
-        }
-        
-        // Função para buscar deficiências baseado em EC
-        function buscarDeficienciasPorEC(ecValue) {
-            const deficiencias = [];
-            if (ecValue < 0.8) {
-                deficiencias.push('Nitrogênio (N)', 'Fósforo (P)', 'Potássio (K)', 'Todos os micronutrientes');
-            } else if (ecValue > 1.8) {
-                deficiencias.push('Cálcio (Ca) bloqueado', 'Magnésio (Mg) bloqueado');
-            }
-            return deficiencias;
-        }
+<script>
+// ══════════════════════════════════
+// DADOS
+// ══════════════════════════════════
+const DAYS_SHORT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DAYS_FULL  = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+const MONTHS_PT  = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
-        // Função para calcular saúde da planta e gerar alertas
-        function calcularSaudePlanta(num) {
-            const data = plantasData[num];
-            let saude = 100;
-            const alertas = [];
-            
-            // Verificar pH
-            if (data.ph !== null && data.ph !== undefined) {
-                const phValue = parseFloat(data.ph);
-                if (phValue < 5.5 || phValue > 6.5) {
-                    let sugestao = phValue < 5.5 ? 'Aumentar pH com pH Up' : 'Reduzir pH com pH Down';
-                    const deficiencias = buscarDeficienciasPorPH(phValue);
-                    const defMsg = deficiencias.length > 0 ? ` - Risco de deficiência: ${deficiencias.join(', ')}` : '';
-                    alertas.push({ tipo: 'warning', msg: `pH fora do intervalo (${phValue.toFixed(1)})${defMsg}`, sugestao: sugestao });
-                    saude -= 15;
-                }
-            } else if (data.phDate && (new Date() - new Date(data.phDate)) > 7 * 24 * 60 * 60 * 1000) {
-                alertas.push({ tipo: 'warning', msg: 'pH não atualizado há > 7 dias', sugestao: 'Medir pH da solução' });
-                saude -= 10;
-            }
-            
-            // Verificar EC
-            if (data.ec !== null && data.ec !== undefined) {
-                const ecValue = parseFloat(data.ec);
-                if (ecValue < 0.8) {
-                    const deficiencias = buscarDeficienciasPorEC(ecValue);
-                    const defMsg = deficiencias.length > 0 ? ` - Risco: ${deficiencias.join(', ')}` : '';
-                    alertas.push({ tipo: 'warning', msg: `EC muito baixo (${ecValue.toFixed(2)})${defMsg}`, sugestao: 'Aumentar concentração de nutrientes ou aumentar volume de rega' });
-                    saude -= 15;
-                } else if (ecValue > 1.8) {
-                    const deficiencias = buscarDeficienciasPorEC(ecValue);
-                    const defMsg = deficiencias.length > 0 ? ` - Bloqueio de: ${deficiencias.join(', ')}` : '';
-                    alertas.push({ tipo: 'critical', msg: `EC muito alto (${ecValue.toFixed(2)})${defMsg}`, sugestao: 'Realizar flush ou reduzir concentração de sais' });
-                    saude -= 25;
-                }
-            } else if (data.ecDate && (new Date() - new Date(data.ecDate)) > 7 * 24 * 60 * 60 * 1000) {
-                alertas.push({ tipo: 'warning', msg: 'EC não atualizado há > 7 dias', sugestao: 'Medir EC da solução' });
-                saude -= 10;
-            }
-            
-            // Verificar umidade do solo
-            if (data.moisture < 30) {
-                alertas.push({ tipo: 'critical', msg: `Solo muito seco (${data.moisture}%) - stress hídrico`, sugestao: 'Aumentar frequência de rega ou aumentar duração' });
-                saude -= 20;
-            } else if (data.moisture > 80) {
-                alertas.push({ tipo: 'warning', msg: `Solo muito molhado (${data.moisture}%) - risco de apodrecimento`, sugestao: 'Reduzir frequência de rega ou aumentar drenagem' });
-                saude -= 15;
-            }
-            
-            // Verificar última rega
-            if (data.lastWatering > 3 * 24 * 60 * 60) {
-                alertas.push({ tipo: 'critical', msg: 'Sem regar há > 3 dias', sugestao: 'Regar imediatamente' });
-                saude -= 20;
-            }
-            
-            // Verificar ambiente
-            if (ambienteData.temp > 28) {
-                alertas.push({ tipo: 'warning', msg: `Temperatura alta (${ambienteData.temp}°C) - stress térmico`, sugestao: 'Aumentar ventilação ou reduzir intensidade de luz' });
-                saude -= 10;
-            } else if (ambienteData.temp < 18) {
-                alertas.push({ tipo: 'warning', msg: `Temperatura baixa (${ambienteData.temp}°C)`, sugestao: 'Aumentar temperatura com aquecedor' });
-                saude -= 10;
-            }
-            
-            if (ambienteData.humidity < 40) {
-                alertas.push({ tipo: 'warning', msg: `Umidade baixa (${ambienteData.humidity}%) - stress hídrico`, sugestao: 'Aumentar umidade com umidificador ou reduzir ventilação' });
-                saude -= 10;
-            } else if (ambienteData.humidity > 70) {
-                alertas.push({ tipo: 'warning', msg: `Umidade alta (${ambienteData.humidity}%) - risco de fungos`, sugestao: 'Aumentar ventilação ou reduzir umidade' });
-                saude -= 10;
-            }
-            
-            saude = Math.max(0, saude);
-            
-            // Atualizar barra de saúde
-            const healthEl = document.getElementById(`p${num}health`);
-            const healthBar = document.getElementById(`p${num}health-bar`);
-            healthEl.textContent = Math.round(saude);
-            
-            healthBar.className = 'health-bar-fill';
-            if (saude >= 80) healthBar.classList.add('excellent');
-            else if (saude >= 60) healthBar.classList.add('good');
-            else if (saude >= 40) healthBar.classList.add('warning');
-            else healthBar.classList.add('critical');
-            
-            // Mostrar alertas
-            const alertasEl = document.getElementById(`p${num}alerts`);
-            if (alertas.length > 0) {
-                alertasEl.classList.add('show');
-                if (alertas.some(a => a.tipo === 'critical')) alertasEl.classList.add('critical');
-                alertasEl.innerHTML = alertas.map(a => `
-                    <div class="alert-item ${a.tipo}">
-                        <div style="font-weight: bold;">⚠️ ${a.msg}</div>
-                        ${a.sugestao ? `<div style="font-size: 11px; margin-top: 4px; opacity: 0.9;">💡 ${a.sugestao}</div>` : ''}
-                    </div>
-                `).join('');
-            } else {
-                alertasEl.classList.remove('show', 'critical');
-            }
-        }
-        
-        // Carregar dados salvos ao iniciar
-        function carregarDadosSalvos() {
-            for (let i = 1; i <= 4; i++) {
-                const dados = JSON.parse(localStorage.getItem(`planta${i}Data`) || '{}');
-                if (dados.ph) {
-                    plantasData[i].ph = dados.ph;
-                    plantasData[i].phDate = new Date(dados.phDate);
-                    document.getElementById(`p${i}ph-input`).value = dados.ph;
-                }
-                if (dados.ec) {
-                    plantasData[i].ec = dados.ec;
-                    plantasData[i].ecDate = new Date(dados.ecDate);
-                    document.getElementById(`p${i}ec-input`).value = dados.ec;
-                }
-                atualizarDatasPHEC(i);
-                
-                const plantaConfig = JSON.parse(localStorage.getItem(`planta${i}`) || '{}');
-                if (plantaConfig.regaTipo) {
-                    document.getElementById(`p${i}-rega-tipo`).value = plantaConfig.regaTipo;
-                    if (plantaConfig.regaTipo === 'horario') {
-                        document.getElementById(`p${i}-rega-horario`).style.display = 'flex';
-                        if (plantaConfig.regaHorario) {
-                            document.getElementById(`p${i}-rega-time`).value = plantaConfig.regaHorario;
-                        }
-                    }
-                }
-            }
-        }
+const MEALS = {
+  0: [
+    {time:'05:30',icon:'🍌',name:'Pré-treino / Caminhada',    desc:'1 fruta'},
+    {time:'07:15',icon:'🍳',name:'Café da Manhã',              desc:'Ovos + carboidrato simples + fruta'},
+    {time:'10:00',icon:'🥛',name:'Lanche',                     desc:'Iogurte ou fruta'},
+    {time:'12:30',icon:'🍱',name:'Almoço',                     desc:'Refeição livre controlada — proteína + porção moderada de arroz'},
+    {time:'15:30',icon:'🍎',name:'Lanche da Tarde',            desc:'Algo leve'},
+    {time:'20:00',icon:'🍽️',name:'Jantar',                    desc:'Frango ou carne moída + legumes'},
+    {time:'22:30',icon:'🥛',name:'Ceia (opcional)',            desc:'Iogurte ou ovos'},
+  ],
+  1: [
+    {time:'05:30',icon:'🍌',name:'Pré-treino',                 desc:'1 banana + café preto'},
+    {time:'07:15',icon:'🍳',name:'Pós-treino / Café',          desc:'4 ovos cozidos + 2 fatias pão integral + 1 fruta'},
+    {time:'10:00',icon:'🥛',name:'Lanche',                     desc:'Iogurte natural + 1 fruta'},
+    {time:'12:30',icon:'🍱',name:'Almoço',                     desc:'180g frango + 120g arroz + feijão + legumes'},
+    {time:'15:30',icon:'🥪',name:'Lanche da Tarde',            desc:'Sanduíche c/ frango desfiado ou 2 ovos + fruta'},
+    {time:'20:00',icon:'🍽️',name:'Jantar',                    desc:'180g carne moída + 100g arroz + legumes'},
+    {time:'22:30',icon:'🥛',name:'Ceia (opcional)',            desc:'Iogurte natural ou 2 ovos'},
+  ],
+  2: [
+    {time:'05:30',icon:'🍌',name:'Pré-treino',                 desc:'Banana ou mamão'},
+    {time:'07:15',icon:'🍳',name:'Pós-treino / Café',          desc:'3 ovos + 1 tapioca média + fruta'},
+    {time:'10:00',icon:'🥛',name:'Lanche',                     desc:'Iogurte + aveia'},
+    {time:'12:30',icon:'🍱',name:'Almoço',                     desc:'Carne moída magra + arroz + legumes + feijão'},
+    {time:'15:30',icon:'🧀',name:'Lanche da Tarde',            desc:'Fruta + queijo branco ou ovos'},
+    {time:'20:00',icon:'🍽️',name:'Jantar',                    desc:'Frango + arroz + salada grande'},
+    {time:'22:30',icon:'🍵',name:'Ceia (opcional)',            desc:'Chá + iogurte'},
+  ],
+  3: [
+    {time:'05:30',icon:'🍌',name:'Pré-treino',                 desc:'1 banana'},
+    {time:'07:15',icon:'🍳',name:'Pós-treino / Café',          desc:'4 ovos + aveia com água ou leite + fruta'},
+    {time:'10:00',icon:'🥛',name:'Lanche',                     desc:'Iogurte ou 2 ovos'},
+    {time:'12:30',icon:'🍱',name:'Almoço',                     desc:'Frango + arroz + legumes'},
+    {time:'15:30',icon:'🥪',name:'Lanche da Tarde',            desc:'Sanduíche simples com proteína'},
+    {time:'20:00',icon:'🍽️',name:'Jantar',                    desc:'Carne moída + legumes + arroz'},
+    {time:'22:30',icon:'🍎',name:'Ceia (opcional)',            desc:'1 fruta'},
+  ],
+  4: [
+    {time:'05:30',icon:'🍌',name:'Pré-treino',                 desc:'Banana + café'},
+    {time:'07:15',icon:'🍳',name:'Pós-treino / Café',          desc:'4 ovos + pão integral + fruta'},
+    {time:'10:00',icon:'🥛',name:'Lanche',                     desc:'Iogurte natural'},
+    {time:'12:30',icon:'🍱',name:'Almoço',                     desc:'Frango + arroz + feijão + legumes'},
+    {time:'15:30',icon:'🥚',name:'Lanche da Tarde',            desc:'Fruta + 2 ovos'},
+    {time:'20:00',icon:'🍽️',name:'Jantar',                    desc:'Carne moída + arroz + salada'},
+    {time:'22:30',icon:'🥛',name:'Ceia (opcional)',            desc:'Iogurte'},
+  ],
+  5: [
+    {time:'05:30',icon:'🍌',name:'Pré-treino',                 desc:'1 fruta'},
+    {time:'07:15',icon:'🍳',name:'Pós-treino / Café',          desc:'Ovos mexidos + tapioca + fruta'},
+    {time:'10:00',icon:'🥛',name:'Lanche',                     desc:'Iogurte + aveia'},
+    {time:'12:30',icon:'🍱',name:'Almoço',                     desc:'Carne moída + arroz + legumes'},
+    {time:'15:30',icon:'🥪',name:'Lanche da Tarde',            desc:'Sanduíche com frango'},
+    {time:'20:00',icon:'🍽️',name:'Jantar',                    desc:'Frango + legumes + arroz'},
+    {time:'22:30',icon:'🥚',name:'Ceia (opcional)',            desc:'2 ovos'},
+  ],
+  6: [
+    {time:'05:30',icon:'🍌',name:'Pré-treino / Caminhada',    desc:'Banana'},
+    {time:'07:15',icon:'🍳',name:'Café da Manhã',              desc:'Ovos + pão integral + fruta'},
+    {time:'10:00',icon:'🥛',name:'Lanche',                     desc:'Iogurte'},
+    {time:'12:30',icon:'🍱',name:'Almoço',                     desc:'Frango + arroz + legumes'},
+    {time:'15:30',icon:'🌰',name:'Lanche da Tarde',            desc:'Fruta + castanhas (porção pequena)'},
+    {time:'20:00',icon:'🍽️',name:'Jantar',                    desc:'Carne moída + arroz + salada'},
+    {time:'22:30',icon:'🍵',name:'Ceia (opcional)',            desc:'Chá'},
+  ],
+};
 
-        // Função de debug para testar cálculo de saúde
-        function testarSaude() {
-            console.log('=== TESTE DE SAÚDE ===');
-            
-            // Teste 1: pH normal, EC normal
-            console.log('\n--- Teste 1: pH 6.0, EC 1.2 (Normal) ---');
-            plantasData[1].ph = 6.0;
-            plantasData[1].ec = 1.2;
-            plantasData[1].phDate = new Date();
-            plantasData[1].ecDate = new Date();
-            plantasData[1].moisture = 50;
-            plantasData[1].lastWatering = 3600;
-            ambienteData.temp = 24;
-            ambienteData.humidity = 60;
-            calcularSaudePlanta(1);
-            console.log('Esperado: Saúde 100%, sem alertas');
-            
-            // Teste 2: pH baixo
-            console.log('\n--- Teste 2: pH 5.0, EC 1.2 (pH baixo) ---');
-            plantasData[2].ph = 5.0;
-            plantasData[2].ec = 1.2;
-            plantasData[2].phDate = new Date();
-            plantasData[2].ecDate = new Date();
-            plantasData[2].moisture = 50;
-            plantasData[2].lastWatering = 3600;
-            ambienteData.temp = 24;
-            ambienteData.humidity = 60;
-            calcularSaudePlanta(2);
-            console.log('Esperado: Saúde 85%, alerta pH fora');
-            
-            // Teste 3: EC muito alto
-            console.log('\n--- Teste 3: pH 6.0, EC 2.0 (EC muito alto) ---');
-            plantasData[3].ph = 6.0;
-            plantasData[3].ec = 2.0;
-            plantasData[3].phDate = new Date();
-            plantasData[3].ecDate = new Date();
-            plantasData[3].moisture = 50;
-            plantasData[3].lastWatering = 3600;
-            ambienteData.temp = 24;
-            ambienteData.humidity = 60;
-            calcularSaudePlanta(3);
-            console.log('Esperado: Saúde 75%, alerta EC alto (crítico)');
-            
-            // Teste 4: Solo muito seco
-            console.log('\n--- Teste 4: pH 6.0, EC 1.2, Umidade 20% (muito seco) ---');
-            plantasData[4].ph = 6.0;
-            plantasData[4].ec = 1.2;
-            plantasData[4].phDate = new Date();
-            plantasData[4].ecDate = new Date();
-            plantasData[4].moisture = 20;
-            plantasData[4].lastWatering = 3600;
-            ambienteData.temp = 24;
-            ambienteData.humidity = 60;
-            calcularSaudePlanta(4);
-            console.log('Esperado: Saúde 80%, alerta solo seco (crítico)');
-            
-            console.log('\n=== FIM DOS TESTES ===');
-        }
-        
-        // Função para atualizar visualização do tanque
-        function atualizarVisualizacaoTanque(percentual) {
-            const tankFill = document.getElementById('tank-fill');
-            const tankFillPercent = document.getElementById('tank-fill-percent');
-            
-            // Atualizar altura do tanque
-            tankFill.style.height = percentual + '%';
-            
-            // Mostrar percentual dentro do tanque se > 20%
-            if (percentual > 20) {
-                tankFillPercent.textContent = percentual + '%';
-            } else {
-                tankFillPercent.textContent = '';
-            }
-            
-            // Mudar cor baseado no nível
-            if (percentual >= 75) {
-                tankFill.style.background = 'linear-gradient(to top, #4caf50, #81c784)'; // Verde
-            } else if (percentual >= 50) {
-                tankFill.style.background = 'linear-gradient(to top, #8bc34a, #aed581)'; // Verde claro
-            } else if (percentual >= 25) {
-                tankFill.style.background = 'linear-gradient(to top, #ff9800, #ffb74d)'; // Laranja
-            } else {
-                tankFill.style.background = 'linear-gradient(to top, #f44336, #ef5350)'; // Vermelho
-            }
-        }
-        
-        // Chamar testarSaude() no console para debugar
-        window.testarSaude = testarSaude;
+const CHECKS_DEFAULT = [
+  {key:'agua',     label:'💧 Beber 2–3L de água hoje'},
+  {key:'pretreino',label:'🍌 Fiz o pré-treino'},
+  {key:'treino',   label:'💪 Treinei hoje'},
+  {key:'legumes',  label:'🥗 Comi legumes / salada'},
+  {key:'peso',     label:'⚖️ Registrei o peso'},
+  {key:'cardio',   label:'🚶 Fiz o cardio leve'},
+  {key:'marmita',  label:'📦 Marmitas preparadas'},
+  {key:'sono',     label:'😴 Dormi 7h+ ontem'},
+];
 
-        window.addEventListener('load', () => {
-            inicializarGraficos();
-            carregarDadosSalvos();
-            document.getElementById('horarioLuz').addEventListener('change', atualizarResumo);
-            document.getElementById('duracaoLuz').addEventListener('change', atualizarResumo);
-            
-            // Atualizar display de rega a cada segundo
-            intervaloAtualizacaoRega = setInterval(() => {
-                for (let i = 1; i <= 4; i++) {
-                    atualizarDisplayRega(i);
-                }
-            }, 1000);
-            
-            // Executar testes automaticamente
-            setTimeout(() => {
-                console.log('Executando testes de saúde...');
-                testarSaude();
-            }, 1000);
-        });
-    </script>
+const CAT_COLORS = {
+  pessoal:  {dot:'var(--green-l)',  cls:'tag-green'},
+  trabalho: {dot:'var(--blue)',     cls:'tag-blue'},
+  treino:   {dot:'var(--orange)',   cls:'tag-orange'},
+  nutricao: {dot:'var(--yellow)',   cls:'tag-yellow'},
+};
+const CAT_LABELS = {
+  pessoal:'👤 Pessoal', trabalho:'💼 Trabalho', treino:'💪 Treino', nutricao:'🥗 Nutrição'
+};
+
+// ══════════════════════════════════
+// STATE
+// ══════════════════════════════════
+let selectedDay = new Date().getDay();
+let selectedCat = 'pessoal';
+let taskFilter  = 'todas';
+
+const ls = {
+  get: (k,d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
+};
+
+let tasks       = ls.get('yn_tasks', []);
+let weights     = ls.get('yn_weights', []);
+let mealChecks  = ls.get('yn_meals', {});
+let dailyChecks = ls.get('yn_daily', {});
+
+// ══════════════════════════════════
+// DATE / HEADER
+// ══════════════════════════════════
+function initHeader() {
+  const now   = new Date();
+  const h     = now.getHours();
+  const greet = h < 12 ? 'Bom dia,' : h < 18 ? 'Boa tarde,' : 'Boa noite,';
+  const subs  = [
+    'Vamos manter o foco hoje! 🌱',
+    'Cada refeição conta. Vai lá! 💪',
+    'Consistência é o caminho! 🔥',
+    'Hoje é mais um dia de evolução! 🎯',
+  ];
+  document.getElementById('greetingSmall').textContent = greet;
+  document.getElementById('greetingSub').textContent   = subs[now.getDay() % subs.length];
+
+  const d = now.getDate();
+  const m = MONTHS_PT[now.getMonth()];
+  const y = now.getFullYear();
+  const wd = DAYS_FULL[now.getDay()];
+  document.getElementById('datePillSub').textContent  = wd;
+  document.getElementById('datePillMain').textContent = `${d} ${m} ${y}`;
+}
+
+// ══════════════════════════════════
+// TABS
+// ══════════════════════════════════
+function switchTab(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'cardapio') renderDaySelector();
+  if (id === 'tarefas')  renderTasks();
+  if (id === 'peso')     renderWeights();
+}
+
+// ══════════════════════════════════
+// CHECKLIST DIÁRIA
+// ══════════════════════════════════
+function todayKey() {
+  const n = new Date();
+  return `${n.getFullYear()}-${n.getMonth()}-${n.getDate()}`;
+}
+
+function renderDailyChecks() {
+  const state = dailyChecks[todayKey()] || {};
+  document.getElementById('dailyChecks').innerHTML = CHECKS_DEFAULT.map(c => `
+    <div class="check-row" onclick="toggleDailyCheck('${c.key}')">
+      <div class="check-box ${state[c.key] ? 'on' : ''}">${state[c.key] ? '✓' : ''}</div>
+      <div class="check-label ${state[c.key] ? 'done-label' : ''}">${c.label}</div>
+    </div>
+  `).join('');
+}
+
+function toggleDailyCheck(key) {
+  const dk = todayKey();
+  if (!dailyChecks[dk]) dailyChecks[dk] = {};
+  dailyChecks[dk][key] = !dailyChecks[dk][key];
+  ls.set('yn_daily', dailyChecks);
+  renderDailyChecks();
+}
+
+// ══════════════════════════════════
+// CARDÁPIO — DIAS GENÉRICOS
+// ══════════════════════════════════
+function renderDaySelector() {
+  const today = new Date().getDay();
+  document.getElementById('daySelector').innerHTML = DAYS_SHORT.map((d, i) => `
+    <button
+      class="day-btn ${i === selectedDay ? 'active' : ''} ${i === today && i !== selectedDay ? 'today-marker' : ''}"
+      onclick="selectDay(${i})">
+      <span class="day-name">${d}</span>
+      <span class="day-abbr">${d.substring(0,1)}</span>
+    </button>
+  `).join('');
+  renderMeals();
+}
+
+function selectDay(d) {
+  selectedDay = d;
+  renderDaySelector();
+}
+
+function renderMeals() {
+  const meals  = MEALS[selectedDay] || [];
+  const today  = new Date().getDay();
+  const isToday = selectedDay === today;
+  const dk     = `${todayKey()}_m`;
+  const state  = mealChecks[dk] || {};
+  const dayName = DAYS_FULL[selectedDay];
+
+  document.getElementById('mealCard').innerHTML = `
+    <div class="card">
+      <div class="card-title">
+        <div class="ct-icon">🍽️</div>
+        ${dayName}
+        ${isToday ? '<span class="tag tag-today" style="margin-left:6px">HOJE</span>' : ''}
+      </div>
+      ${meals.map((m, i) => `
+        <div class="meal-item">
+          <div class="meal-time">${m.time}</div>
+          <div class="meal-icon">${m.icon}</div>
+          <div class="meal-info">
+            <div class="meal-name">${m.name}</div>
+            <div class="meal-desc">${m.desc}</div>
+          </div>
+          ${isToday ? `
+            <div class="meal-check ${state[i] ? 'done' : ''}" onclick="toggleMeal(${i})">
+              ${state[i] ? '✓' : ''}
+            </div>
+          ` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function toggleMeal(i) {
+  const dk = `${todayKey()}_m`;
+  if (!mealChecks[dk]) mealChecks[dk] = {};
+  mealChecks[dk][i] = !mealChecks[dk][i];
+  ls.set('yn_meals', mealChecks);
+  renderMeals();
+}
+
+// ══════════════════════════════════
+// TAREFAS
+// ══════════════════════════════════
+function selectCat(btn) {
+  document.querySelectorAll('.cat-sel-btn').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  selectedCat = btn.dataset.cat;
+}
+
+function addTask() {
+  const input = document.getElementById('taskInput');
+  const text  = input.value.trim();
+  if (!text) return;
+  tasks.unshift({
+    id: Date.now(),
+    text,
+    cat: selectedCat,
+    done: false,
+    date: new Date().toLocaleDateString('pt-BR'),
+  });
+  ls.set('yn_tasks', tasks);
+  input.value = '';
+  renderTasks();
+}
+
+function toggleTask(id) {
+  const t = tasks.find(t => t.id === id);
+  if (t) t.done = !t.done;
+  ls.set('yn_tasks', tasks);
+  renderTasks();
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  ls.set('yn_tasks', tasks);
+  renderTasks();
+}
+
+function filterTasks(f, btn) {
+  taskFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+}
+
+function renderTasks() {
+  const pending = tasks.filter(t => !t.done).length;
+  document.getElementById('taskCounter').textContent = `${pending} pendente${pending !== 1 ? 's' : ''}`;
+
+  let list = tasks;
+  if (taskFilter === 'pendente') list = tasks.filter(t => !t.done);
+  if (taskFilter === 'done')     list = tasks.filter(t => t.done);
+
+  const el = document.getElementById('taskList');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><span class="ei">📋</span>Nenhuma tarefa aqui ainda!</div>`;
+    return;
+  }
+  el.innerHTML = list.map(t => {
+    const cc = CAT_COLORS[t.cat] || CAT_COLORS.pessoal;
+    return `
+      <div class="task-item ${t.done ? 'done-task' : ''}">
+        <div class="task-cb ${t.done ? 'checked' : ''}" onclick="toggleTask(${t.id})">${t.done ? '✓' : ''}</div>
+        <div class="task-text ${t.done ? 'done-text' : ''}">
+          ${t.text}
+          <span class="task-date">${t.date}</span>
+        </div>
+        <span class="tag ${cc.cls}" style="font-size:10px;white-space:nowrap">${CAT_LABELS[t.cat]}</span>
+        <button class="task-del" onclick="deleteTask(${t.id})">🗑️</button>
+      </div>
+    `;
+  }).join('');
+}
+
+// ══════════════════════════════════
+// PESO
+// ══════════════════════════════════
+function logWeight() {
+  const val = parseFloat(document.getElementById('weightInput').value);
+  if (isNaN(val) || val < 30 || val > 300) return;
+  weights.unshift({ val, date: new Date().toLocaleDateString('pt-BR'), ts: Date.now() });
+  ls.set('yn_weights', weights);
+  document.getElementById('weightInput').value = '';
+  renderWeights();
+}
+
+function renderWeights() {
+  const el      = document.getElementById('weightHistory');
+  const startEl = document.getElementById('startWeight');
+  const lastEl  = document.getElementById('lastWeight');
+  const lossEl  = document.getElementById('totalLoss');
+
+  if (!weights.length) {
+    el.innerHTML = `<div class="empty-state"><span class="ei">⚖️</span>Nenhum registro ainda.<br>Comece amanhã de manhã!</div>`;
+    startEl.textContent = '–';
+    lastEl.textContent  = '–';
+    lossEl.textContent  = '–';
+    return;
+  }
+
+  const first = weights[weights.length - 1].val;
+  const last  = weights[0].val;
+  const loss  = (first - last).toFixed(1);
+
+  startEl.textContent     = `${first} kg`;
+  lastEl.textContent      = `${last} kg`;
+  lossEl.textContent      = loss > 0 ? `−${loss} kg` : loss < 0 ? `+${Math.abs(loss)} kg` : '= igual';
+  lossEl.style.color      = loss > 0 ? 'var(--green-l)' : loss < 0 ? 'var(--orange)' : 'var(--muted)';
+
+  el.innerHTML = weights.map((w, i) => {
+    const prev = weights[i + 1];
+    let diffHtml = '';
+    if (prev) {
+      const d   = (w.val - prev.val).toFixed(1);
+      const cls = d <= 0 ? 'diff-down' : 'diff-up';
+      const arr = d <= 0 ? '↓' : '↑';
+      diffHtml  = `<span class="weight-diff ${cls}">${arr} ${Math.abs(d)} kg</span>`;
+    }
+    return `
+      <div class="weight-entry">
+        <div>
+          <div class="weight-val">${w.val} kg</div>
+          <div class="weight-date">${w.date}</div>
+        </div>
+        ${diffHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+// ══════════════════════════════════
+// ENTER key → add task
+// ══════════════════════════════════
+document.getElementById('taskInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addTask();
+});
+
+// ══════════════════════════════════
+// INIT
+// ══════════════════════════════════
+initHeader();
+renderDailyChecks();
+renderTasks();
+renderWeights();
+</script>
 </body>
 </html>
